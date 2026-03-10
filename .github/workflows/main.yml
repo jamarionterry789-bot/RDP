@@ -1,40 +1,26 @@
-name: RDP
-
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
-  rdp:
+  build:
     runs-on: windows-latest
-    timeout-minutes: 360
 
     steps:
-    - name: Enable Administrator
-      run: |
-        net user administrator /active:yes
-        net user administrator P@ss12345
-        net localgroup administrators administrator /add
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Enable Remote Desktop
-      run: |
-        reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+      - name: Install Tailscale
+        run: |
+          choco install tailscale -y
 
-    - name: Install Tailscale
-      run: |
-        choco install tailscale -y
+      - name: Start Tailscale
+        run: |
+          tailscale up --authkey=${{ secrets.TS_AUTHKEY }} --hostname github-runner
 
-    - name: Start Tailscale
-      env:
-        TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
-      run: |
-        tailscale up --authkey $env:TS_AUTHKEY --hostname github-rdp --accept-routes
+      - name: Show current user
+        run: |
+          whoami
+          net user
 
-    - name: Show Tailscale IP
-      run: |
-        tailscale ip -4
-
-    - name: Keep RDP Alive
-      run: |
-        Write-Host "RDP Active..."
-        Start-Sleep -Seconds 21600
+      - name: Keep runner alive
+        run: |
+          ping -t 127.0.0.1
