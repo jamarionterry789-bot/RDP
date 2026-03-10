@@ -10,7 +10,7 @@ jobs:
 
     steps:
 
-    - name: Show current user
+    - name: Show Current User
       run: |
         whoami
 
@@ -27,7 +27,17 @@ jobs:
     - name: Connect Tailscale
       shell: powershell
       run: |
-        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TS_AUTHKEY }} --hostname github-runner --accept-routes
+        $authkey = "${{ secrets.TS_AUTHKEY }}"
+        if ([string]::IsNullOrEmpty($authkey)) {
+          Write-Host "TS_AUTHKEY belum di-set!"
+          exit 1
+        }
+
+        & "C:\Program Files\Tailscale\tailscale.exe" up `
+        --authkey=$authkey `
+        --hostname=github-runner `
+        --accept-routes `
+        --reset
 
     - name: Set Admin Password
       shell: powershell
@@ -43,8 +53,9 @@ jobs:
     - name: Show Tailscale IP
       shell: powershell
       run: |
-        Write-Host "Tailscale IP:"
+        Write-Host "===== TAILSCALE IP ====="
         & "C:\Program Files\Tailscale\tailscale.exe" ip
+        Write-Host "========================"
 
     - name: Show System Info
       shell: powershell
