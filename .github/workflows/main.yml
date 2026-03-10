@@ -1,4 +1,4 @@
-name: Windows RDP VPS Mode
+name: windows-rdp-tailscale
 
 on:
   workflow_dispatch:
@@ -10,39 +10,54 @@ jobs:
 
     steps:
 
-    - name: Setup Administrator
+    - name: Show current user
       run: |
-        net user administrator /active:yes
-        net user administrator Admin@123
-        net localgroup administrators administrator /add
+        whoami
 
-    - name: Create VPS User
+    - name: Download Tailscale
+      shell: powershell
       run: |
-        net user vpsadmin StrongPass123 /add
-        net localgroup administrators vpsadmin /add
-        net user vpsadmin /active:yes
-
-    - name: Enable Remote Desktop
-      run: |
-        reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe -OutFile tailscale.exe
 
     - name: Install Tailscale
+      shell: powershell
       run: |
-        choco install tailscale -y
+        Start-Process .\tailscale.exe /S -Wait
 
     - name: Connect Tailscale
-      env:
-        TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+      shell: powershell
       run: |
-        tailscale up --authkey $env:TS_AUTHKEY --hostname github-rdp --accept-routes
+        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TS_AUTHKEY }} --hostname github-runner --accept-routes
+
+    - name: Set Admin Password
+      shell: powershell
+      run: |
+        net user runneradmin P@ssw0rd123
+
+    - name: Enable Remote Desktop
+      shell: powershell
+      run: |
+        reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+        netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
 
     - name: Show Tailscale IP
+      shell: powershell
       run: |
-        Write-Host "RDP IP:"
-        tailscale ip -4
+        Write-Host "Tailscale IP:"
+        & "C:\Program Files\Tailscale\tailscale.exe" ip
+
+    - name: Show System Info
+      shell: powershell
+      run: |
+        hostname
+        ipconfig
+        net localgroup administrators
 
     - name: Keep Runner Alive
+      shell: powershell
       run: |
-        Write-Host "RDP is running..."
-        Start-Sleep -Seconds 21600
+        Write-Host "Runner aktif. Silakan login via RDP."
+        while ($true) {
+          Start-Sleep -Seconds 300
+          Write-Host "Runner masih aktif $(Get-Date)"
+        }
