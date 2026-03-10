@@ -1,26 +1,56 @@
-on: workflow_dispatch
+name: windows-rdp-tailscale-stable
+
+on:
+  workflow_dispatch:
 
 jobs:
-  build:
+  rdp:
     runs-on: windows-latest
+    timeout-minutes: 360
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Install Tailscale
-        run: |
-          choco install tailscale -y
+    - name: Download Tailscale
+      shell: powershell
+      run: |
+        Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe -OutFile tailscale.exe
 
-      - name: Start Tailscale
-        run: |
-          tailscale up --authkey=${{ secrets.TS_AUTHKEY }} --hostname github-runner
+    - name: Install Tailscale
+      shell: powershell
+      run: |
+        Start-Process .\tailscale.exe /S -Wait
 
-      - name: Show current user
-        run: |
-          whoami
-          net user
+    - name: Connect Tailscale
+      shell: powershell
+      run: |
+        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TS_AUTHKEY }} --hostname github-runner --accept-routes
 
-      - name: Keep runner alive
-        run: |
-          ping -t 127.0.0.1
+    - name: Set Admin Password
+      shell: powershell
+      run: |
+        net user runneradmin P@ssw0rd123
+
+    - name: Enable Remote Desktop
+      shell: powershell
+      run: |
+        reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+        netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
+
+    - name: Show Network Info
+      shell: powershell
+      run: |
+        echo "Current user:"
+        whoami
+        echo "Tailscale IP:"
+        & "C:\Program Files\Tailscale\tailscale.exe" ip
+        echo "Local IP:"
+        ipconfig
+
+    - name: Keep Runner Alive
+      shell: powershell
+      run: |
+        Write-Host "Runner aktif. Anda bisa RDP sekarang."
+        while ($true) {
+          Start-Sleep -Seconds 300
+          Write-Host "Runner masih aktif $(Get-Date)"
+        }
