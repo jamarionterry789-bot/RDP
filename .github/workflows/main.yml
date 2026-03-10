@@ -1,4 +1,4 @@
-name: windows-rdp-tailscale-stable
+name: Windows RDP VPS Mode
 
 on:
   workflow_dispatch:
@@ -10,47 +10,39 @@ jobs:
 
     steps:
 
-    - name: Download Tailscale
-      shell: powershell
+    - name: Setup Administrator
       run: |
-        Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe -OutFile tailscale.exe
+        net user administrator /active:yes
+        net user administrator Admin@123
+        net localgroup administrators administrator /add
 
-    - name: Install Tailscale
-      shell: powershell
+    - name: Create VPS User
       run: |
-        Start-Process .\tailscale.exe /S -Wait
-
-    - name: Connect Tailscale
-      shell: powershell
-      run: |
-        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TS_AUTHKEY }} --hostname github-runner --accept-routes
-
-    - name: Set Admin Password
-      shell: powershell
-      run: |
-        net user runneradmin P@ssw0rd123
+        net user vpsadmin StrongPass123 /add
+        net localgroup administrators vpsadmin /add
+        net user vpsadmin /active:yes
 
     - name: Enable Remote Desktop
-      shell: powershell
       run: |
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
-        netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-    - name: Show Network Info
-      shell: powershell
+    - name: Install Tailscale
       run: |
-        echo "Current user:"
-        whoami
-        echo "Tailscale IP:"
-        & "C:\Program Files\Tailscale\tailscale.exe" ip
-        echo "Local IP:"
-        ipconfig
+        choco install tailscale -y
+
+    - name: Connect Tailscale
+      env:
+        TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+      run: |
+        tailscale up --authkey $env:TS_AUTHKEY --hostname github-rdp --accept-routes
+
+    - name: Show Tailscale IP
+      run: |
+        Write-Host "RDP IP:"
+        tailscale ip -4
 
     - name: Keep Runner Alive
-      shell: powershell
       run: |
-        Write-Host "Runner aktif. Anda bisa RDP sekarang."
-        while ($true) {
-          Start-Sleep -Seconds 300
-          Write-Host "Runner masih aktif $(Get-Date)"
-        }
+        Write-Host "RDP is running..."
+        Start-Sleep -Seconds 21600
