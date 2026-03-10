@@ -1,4 +1,4 @@
-name: windows-rdp-tailscale
+name: windows-rdp-gui
 
 on:
   workflow_dispatch:
@@ -13,6 +13,15 @@ jobs:
     - name: Show Current User
       run: |
         whoami
+
+    - name: Set Admin Password
+      run: |
+        net user runneradmin P@ssw0rd123
+
+    - name: Enable RDP
+      run: |
+        reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+        netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
 
     - name: Download Tailscale
       shell: powershell
@@ -35,20 +44,25 @@ jobs:
 
         & "C:\Program Files\Tailscale\tailscale.exe" up `
         --authkey=$authkey `
-        --hostname=github-runner `
+        --hostname=github-rdp `
         --accept-routes `
         --reset
 
-    - name: Set Admin Password
+    - name: Fix Desktop Environment
       shell: powershell
       run: |
-        net user runneradmin P@ssw0rd123
+        Write-Host "Memperbaiki GUI Windows..."
 
-    - name: Enable Remote Desktop
-      shell: powershell
-      run: |
-        reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
-        netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
+        # restart explorer
+        taskkill /f /im explorer.exe
+        Start-Sleep -Seconds 2
+        Start-Process explorer.exe
+
+        # enable interactive desktop
+        reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA /t REG_DWORD /d 0 /f
+
+        # start shell
+        Start-Process "C:\Windows\explorer.exe"
 
     - name: Show Tailscale IP
       shell: powershell
@@ -57,18 +71,11 @@ jobs:
         & "C:\Program Files\Tailscale\tailscale.exe" ip
         Write-Host "========================"
 
-    - name: Show System Info
-      shell: powershell
-      run: |
-        hostname
-        ipconfig
-        net localgroup administrators
-
     - name: Keep Runner Alive
       shell: powershell
       run: |
-        Write-Host "Runner aktif. Silakan login via RDP."
+        Write-Host "Windows RDP siap digunakan."
         while ($true) {
           Start-Sleep -Seconds 300
-          Write-Host "Runner masih aktif $(Get-Date)"
+          Write-Host "Runner aktif $(Get-Date)"
         }
